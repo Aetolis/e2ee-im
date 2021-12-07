@@ -4,8 +4,7 @@ import hashlib
 
 class Secp256r1(object):
     def __init__(self):
-        # secp256r1 curve parameters
-        # https://www.secg.org/sec2-v2.pdf
+        # Define secp256r1 curve parameters (https://www.secg.org/sec2-v2.pdf)
         self.a = 0x0000000000000000000000000000000000000000000000000000000000000000
         self.b = 0x0000000000000000000000000000000000000000000000000000000000000007
         self.p = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F
@@ -16,6 +15,113 @@ class Secp256r1(object):
             0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798,
             0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8,
         )
+
+    def generate_private_key(self):
+        """Generate a new private key."""
+        # Generate a random private key
+        privKey = secrets.randbelow(self.n)
+        print("privKey", privKey)
+        return privKey
+
+    def generate_public_key(self, privKey):
+        """Generate a compressed public key from a private key."""
+        pubKey = self.g * privKey
+        # Compress pubKey
+        pubKey_c = "0" + str(2 + pubKey.y % 2) + str(hex(pubKey.x)[2:])
+        print("pubKey:", pubKey_c)
+        return pubKey_c
+
+    def generate_keypair(self):
+        """Generate a new keypair."""
+        # Generate a random private key
+        privKey = self.generate_private_key()
+        # Generate a public key from a private key
+        pubKey_c = self.generate_public_key(privKey)
+        return privKey, pubKey_c
+
+    @staticmethod
+    def mod_sqrt(a, p):
+        """Find a quadratic residue (mod p) of a"""
+        # Partition p-1 to s * 2^e for an odd s
+        s = p - 1
+        e = 0
+        while s % 2 == 0:
+            s //= 2
+            e += 1
+
+        # Find some 'n' with a legendre symbol n|p = -1.
+        n = 2
+        ls = pow(n, (p - 1) // 2, p)
+        ls = False if ls == p - 1 else ls
+        while ls:
+            n += 1
+            ls = pow(n, (p - 1) // 2, p)
+            ls = False if ls == p - 1 else ls
+
+        x = pow(a, (s + 1) // 2, p)  # a guess of the square root
+        b = pow(a, s, p)  # how much we're off with the guess
+        g = pow(n, s, p)  # used to update
+        r = e  # the exponent
+
+        while True:
+            t = b
+            m = 0
+            for m in range(r):
+                if t == 1:
+                    break
+                t = pow(t, 2, p)
+            if m == 0:
+                return x
+            gs = pow(g, 2 ** (r - m - 1), p)
+            g = (gs * gs) % p
+            x = (x * gs) % p
+            b = (b * g) % p
+            r = m
+
+    def reconstruct_pubkey(self, pubKey_c):
+        """Reconstruct public key from compressed format."""
+        x = int("0x" + pubKey_c[2:], 16)
+        n = x ** 3 + self.a * x + self.b
+        y = self.mod_sqrt(n, self.p)
+        if y % 2 != (int(pubKey_c[1]) - 2):
+            y = -y % self.p
+        return Point(self, x, y)
+    
+    def sign(self, privKey, message):
+        """Sign message using privKey."""
+        # Calculate message hash
+        hashBytes = hashlib.sha3_256(message.encode("utf8")).digest()
+        h = int.from_bytes(hashBytes, byteorder="big")
+
+        # Generate a random k
+        k = secrets.randbelow(self.n)
+        # Generate a random point R with k
+        R_point = k * self.g
+        # Calculate r
+        r = R_point.x
+        # Calculate s
+        s = pow(k, -1, self.n) * (h + r * privKey) % self.n
+        # Return signature
+        return (r, s)
+
+    def verify(self, message, signature, pubKey_c):
+        """Verify a ECDSA signature."""
+        r, s = signature
+
+        # Reconstruct pubKey from compressed format
+        pubKey = self.reconstruct_pubkey(pubKey_c)
+
+        # Calculate message hash
+        hashBytes = hashlib.sha3_256(message.encode("utf8")).digest()
+        h = int.from_bytes(hashBytes, byteorder="big")
+
+        # Calculate the modular inverse of signature proof
+        s1 = pow(s, -1, self.n) % self.n
+        # Reconstruct the random point used in signature
+        R_point = (pubKey * (r * s1)) + ((h * s1) * self.g)
+        r_ = R_point.x
+        # verify signature by comparing given r with r_
+        return r_ == r
 
 
 class Inf(object):
@@ -89,147 +195,11 @@ class Point(object):
             addend += addend
         return result
 
-
-# curve = Secp256r1(curve="secp256r1")
-
-# privKey = int("0x51897b64e85c3f714bba707e867914295a1377a7463a9dae8ea6a8b914246319", 16)
-# print("privKey:", hex(privKey)[2:])
-
-# pubKey = curve.g * privKey
-# pubKeyCompressed = "0" + str(2 + pubKey.y % 2) + str(hex(pubKey.x)[2:])
-# print("pubKey:", pubKeyCompressed)
-# assert(pubKeyCompressed == "02f54ba86dc1ccb5bed0224d23f01ed87e4a443c47fc690d7797a13d41d2340e1a")
+def main():
+    ecc = Secp256r1()
+    privKey, pubKey_c = ecc.generate_keypair()
+    (r, s) = ecc.sign(privKey, "message")
+    print(ecc.verify_signature("message", (r, s), pubKey_c))
 
 
-def generate_private_key():
-    """Generate a new private key."""
-    # Generate a random private key
-    privKey = secrets.randbelow(
-        0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
-    )
-    print("privKey", privKey)
-    return privKey
-
-
-def generate_public_key(privKey):
-    """Generate a public key from a private key."""
-    curve = Secp256r1()
-    pubKey = curve.g * privKey
-    pubKeyCompressed = "0" + str(2 + pubKey.y % 2) + str(hex(pubKey.x)[2:])
-    print("pubKey:", pubKeyCompressed)
-    return pubKeyCompressed, pubKey
-
-
-def generate_keypair():
-    """Generate a new keypair."""
-    # Generate a random private key
-    privKey = generate_private_key()
-    # Generate a public key from a private key
-    pubKeyCompressed, pubKey = generate_public_key(privKey)
-    return privKey, pubKeyCompressed, pubKey
-
-
-# https://cryptobook.nakov.com/digital-signatures/ecdsa-sign-verify-messages
-def ecdsa_sign(privKey, message):
-    """Sign a message with a private key."""
-    # Calculate message hash
-    hashBytes = hashlib.sha3_256(message.encode("utf8")).digest()
-    h = int.from_bytes(hashBytes, byteorder="big")
-
-    curve = Secp256r1()
-    # Generate a random k
-    k = secrets.randbelow(curve.n)
-    # Generate a random point R with k
-    r_point = k * curve.g
-    # Calculate r
-    r = r_point.x
-    # Calculate s
-    s = pow(k, -1, curve.n) * (h + r * privKey)
-    # Return signature
-    return (r, s)
-
-
-def legendre_symbol(a, p):
-    """Compute the Legendre symbol"""
-    ls = pow(a, (p - 1) // 2, p)
-    return -1 if ls == p - 1 else ls
-
-
-def modular_sqrt(a, p):
-    """Find a quadratic residue (mod p) of a"""
-    # Partition p-1 to s * 2^e for an odd s
-    s = p - 1
-    e = 0
-    while s % 2 == 0:
-        s //= 2
-        e += 1
-
-    # Find some 'n' with a legendre symbol n|p = -1.
-    n = 2
-    while legendre_symbol(n, p) != -1:
-        n += 1
-
-    x = pow(a, (s + 1) // 2, p)  # a guess of the square root
-    b = pow(a, s, p)  # how much we're off with the guess
-    g = pow(n, s, p)  # used to update
-    r = e  # the exponent
-
-    while True:
-        t = b
-        m = 0
-        for m in range(r):
-            if t == 1:
-                break
-            t = pow(t, 2, p)
-        if m == 0:
-            return x
-        gs = pow(g, 2 ** (r - m - 1), p)
-        g = (gs * gs) % p
-        x = (x * gs) % p
-        b = (b * g) % p
-        r = m
-
-
-def reconstruct_pubkey_point(pubKeyCompressed, pubK):
-    curve = Secp256r1()
-    x = int("0x" + pubKeyCompressed[2:], 16)
-    n = x ** 3 + curve.a * x + curve.b
-    y = modular_sqrt(n, curve.p)
-    if y % 2 != (int(pubKeyCompressed[1]) - 2):
-        y = -y % curve.p
-    pubKey = Point(curve, x, y)
-    # print(pubK.x == x)
-    # print(pubK.y)
-    # print(y, y == pubK.y)
-    return pubKey
-
-
-def verify_signature(signed_message, signature, pubKey):  # Compressed):
-    """verify a ECDSA signature"""
-    (r, s) = signature
-
-    # reconstruct pubkey point
-    curve = Secp256r1()
-    new_pubKey = Point(curve, pubKey.x, pubKey.y)
-
-    # Calculate message hash
-    hashBytes = hashlib.sha3_256(signed_message.encode("utf8")).digest()
-    h = int.from_bytes(hashBytes, byteorder="big")
-
-    # calculate the modular inverse of the signature proof
-    s_ = pow(s, -1, curve.n)
-    # reconstruct the random point used in signature
-    r_point = (new_pubKey * (r * s_)) + ((h * s_) * curve.g)
-    r_ = r_point.x
-    # vertify the signature by comparing the given r value with the one computed
-    return r_ == r
-
-
-def testing_sign_verify():
-    privK, pubK_c, pubK = generate_keypair()
-    try_pubk = reconstruct_pubkey_point(pubK_c, pubK)
-    (r, s) = ecdsa_sign(privK, "message")
-    print(verify_signature("message", (r, s), try_pubk))
-
-
-testing_sign_verify()
+main()
