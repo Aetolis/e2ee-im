@@ -195,6 +195,9 @@ class Point(object):
             addend += addend
         return result
     
+    def __iter__(self):
+        return iter((self.x, self.y))
+    
     def __str__(self):
         return f"({self.x}, {self.y})"
     
@@ -204,7 +207,7 @@ class Point(object):
 
 if __name__ == "__main__":
     ecc = Secp256r1()
-    print(ecc.g)
+    print(tuple(ecc.g))
     privKey, pubKey_c = ecc.generate_keypair()
     (r, s) = ecc.sign(privKey, "message")
     print(ecc.verify("message", (r, s), pubKey_c))
