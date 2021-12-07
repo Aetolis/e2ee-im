@@ -139,14 +139,59 @@ def ecdsa_sign(privKey, message):
     # Return signature
     return (r, s)
 
-"""
-def reconstruct_pubkey_point(pubKeyCompressed):
+def legendre_symbol(a, p):
+        """ Compute the Legendre symbol """
+        ls = pow(a, (p - 1) // 2, p)
+        return -1 if ls == p - 1 else ls
+
+def modular_sqrt(a, p):
+    """ Find a quadratic residue (mod p) of a """
+    # Partition p-1 to s * 2^e for an odd s
+    s = p - 1
+    e = 0
+    while s % 2 == 0:
+        s //= 2
+        e += 1
+
+    # Find some 'n' with a legendre symbol n|p = -1.
+    n = 2
+    while legendre_symbol(n, p) != -1:
+        n += 1
+     
+    x = pow(a, (s + 1) // 2, p)   # a guess of the square root
+    b = pow(a, s, p)              # how much we're off with the guess
+    g = pow(n, s, p)            # used to update
+    r = e               # the exponent
+
+    while True:
+        t = b
+        m = 0
+        for m in range(r):
+            if t == 1:
+                break
+            t = pow(t, 2, p)
+        if m == 0:
+            return x
+        gs = pow(g, 2 ** (r - m - 1), p)
+        g = (gs * gs) % p
+        x = (x * gs) % p
+        b = (b * g) % p
+        r = m
+
+
+def reconstruct_pubkey_point(pubKeyCompressed,pubK):
     curve = Secp256r1()
     x = int('0x'+pubKeyCompressed[2:],16)
-
-    pubKey = Point(curve,x, pubKey.y)
+    n = x**3 + curve.a * x + curve.b
+    y = modular_sqrt(n, curve.p)
+    if y % 2 != (int(pubKeyCompressed[1])-2):
+        y = -y % curve.p
+    pubKey = Point(curve,x, y)
+    #print(pubK.x == x)
+    #print(pubK.y)
+    #print(y, y == pubK.y)
     return pubKey
-"""
+
 
 
 def verify_signature(signed_message,signature,pubKey):#Compressed):
@@ -174,8 +219,9 @@ def verify_signature(signed_message,signature,pubKey):#Compressed):
 
 def testing_sign_verify():
     privK,pubK_c,pubK = generate_keypair()
+    try_pubk = reconstruct_pubkey_point(pubK_c,pubK)
     (r,s) = ecdsa_sign(privK, 'message')
-    print(verify_signature('message',(r,s),pubK))
+    print(verify_signature('message',(r,s),try_pubk))
     
 
 testing_sign_verify()
