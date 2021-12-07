@@ -1,5 +1,10 @@
+import secrets
+import hashlib
+
 class Secp256r1(object):
     def __init__(self):
+        # secp256r1 curve parameters
+        # https://www.secg.org/sec2-v2.pdf
         self.a = 0x0000000000000000000000000000000000000000000000000000000000000000
         self.b = 0x0000000000000000000000000000000000000000000000000000000000000007
         self.p = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F
@@ -62,22 +67,67 @@ class Point(object):
         return result
 
 
-curve = Secp256r1(curve="secp256r1")
+# curve = Secp256r1(curve="secp256r1")
 
-privKey = int("0x51897b64e85c3f714bba707e867914295a1377a7463a9dae8ea6a8b914246319", 16)
-print("privKey:", hex(privKey)[2:])
+# privKey = int("0x51897b64e85c3f714bba707e867914295a1377a7463a9dae8ea6a8b914246319", 16)
+# print("privKey:", hex(privKey)[2:])
 
-pubKey = curve.g * privKey
-pubKeyCompressed = "0" + str(2 + pubKey.y % 2) + str(hex(pubKey.x)[2:])
-print("pubKey:", pubKeyCompressed)
-assert(pubKeyCompressed == "02f54ba86dc1ccb5bed0224d23f01ed87e4a443c47fc690d7797a13d41d2340e1a")
-
-
-# def generate_private_key(curve=secp256r1):
-#     """Generate a new private key."""
-#     # Generate a random private key
+# pubKey = curve.g * privKey
+# pubKeyCompressed = "0" + str(2 + pubKey.y % 2) + str(hex(pubKey.x)[2:])
+# print("pubKey:", pubKeyCompressed)
+# assert(pubKeyCompressed == "02f54ba86dc1ccb5bed0224d23f01ed87e4a443c47fc690d7797a13d41d2340e1a")
 
 
-# def generate_keypair(curve=secp256r1):
-#     """Generate a new keypair."""
-#     # Generate a random private key
+def generate_private_key():
+    """Generate a new private key."""
+    # Generate a random private key
+    privKey = secrets.randbelow(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141)
+    print("privKey", privKey)
+    return privKey
+
+def generate_public_key(privKey):
+    """Generate a public key from a private key."""
+    curve = Secp256r1()
+    pubKey = curve.g * privKey
+    pubKeyCompressed = "0" + str(2 + pubKey.y % 2) + str(hex(pubKey.x)[2:])
+    print("pubKey:", pubKeyCompressed)
+    return pubKeyCompressed
+
+def generate_keypair():
+    """Generate a new keypair."""
+    # Generate a random private key
+    privKey = generate_private_key()
+    # Generate a public key from a private key
+    pubKeyCompressed = generate_public_key(privKey)
+    return privKey, pubKeyCompressed
+
+print(generate_keypair())
+
+# https://cryptobook.nakov.com/digital-signatures/ecdsa-sign-verify-messages
+def ecdsa_sign(privKey, message):
+    """Sign a message with a private key."""
+    # Calculate message hash
+    m = hashlib.sha256()
+    m.update(message)
+    h = m.digest()
+
+    curve = Secp256r1()
+    # Generate a random k
+    k = secrets.randbelow(curve.n)
+    # Generate a public key from a private key
+    pubKey = curve.g * privKey
+    # Calculate r
+    r = pubKey.x
+    # Calculate s
+    s = pow(k, -1, curve.n) * (k + r * privKey)
+    # Return signature
+    return (r, s)
+
+m = hashlib.sha256()
+m.update(b"Hello, world!")
+h = m.digest()
+print(h)
+
+
+
+
