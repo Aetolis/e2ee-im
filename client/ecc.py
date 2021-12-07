@@ -1,6 +1,7 @@
 import secrets
 import hashlib
 
+
 class Secp256r1(object):
     def __init__(self):
         # secp256r1 curve parameters
@@ -65,7 +66,24 @@ class Point(object):
                 result += addend
             addend += addend
         return result
+    
+    def __rmul__(self, other):
+        if isinstance(other, Inf):
+            return Inf(self.curve)
 
+        if other % self.curve.n == 0:
+            return Inf(self.curve)
+        if other < 0:
+            addend = Point(self.curve, self.x, -self.y % self.p)
+        else:
+            addend = self
+        result = Inf(self.curve)
+
+        for bit in reversed([int(i) for i in bin(abs(other))[2:]]):
+            if bit == 1:
+                result += addend
+            addend += addend
+        return result
 
 # curve = Secp256r1(curve="secp256r1")
 
@@ -91,43 +109,73 @@ def generate_public_key(privKey):
     pubKey = curve.g * privKey
     pubKeyCompressed = "0" + str(2 + pubKey.y % 2) + str(hex(pubKey.x)[2:])
     print("pubKey:", pubKeyCompressed)
-    return pubKeyCompressed
+    return pubKeyCompressed,pubKey
 
 def generate_keypair():
     """Generate a new keypair."""
     # Generate a random private key
     privKey = generate_private_key()
     # Generate a public key from a private key
-    pubKeyCompressed = generate_public_key(privKey)
-    return privKey, pubKeyCompressed
+    pubKeyCompressed,pubKey = generate_public_key(privKey)
+    return privKey, pubKeyCompressed,pubKey
 
-print(generate_keypair())
 
 # https://cryptobook.nakov.com/digital-signatures/ecdsa-sign-verify-messages
 def ecdsa_sign(privKey, message):
     """Sign a message with a private key."""
     # Calculate message hash
-    m = hashlib.sha256()
-    m.update(message)
-    h = m.digest()
+    hashBytes = hashlib.sha3_256(message.encode("utf8")).digest()
+    h = int.from_bytes(hashBytes, byteorder="big")
 
     curve = Secp256r1()
     # Generate a random k
     k = secrets.randbelow(curve.n)
-    # Generate a public key from a private key
-    pubKey = curve.g * privKey
+    # Generate a random point R with k
+    r_point = k * curve.g
     # Calculate r
-    r = pubKey.x
+    r = r_point.x
     # Calculate s
-    s = pow(k, -1, curve.n) * (k + r * privKey)
+    s = pow(k, -1, curve.n) * (h + r * privKey)
     # Return signature
     return (r, s)
 
-m = hashlib.sha256()
-m.update(b"Hello, world!")
-h = m.digest()
-print(h)
+"""
+def reconstruct_pubkey_point(pubKeyCompressed):
+    curve = Secp256r1()
+    x = int('0x'+pubKeyCompressed[2:],16)
+
+    pubKey = Point(curve,x, pubKey.y)
+    return pubKey
+"""
+
+
+def verify_signature(signed_message,signature,pubKey):#Compressed):
+    """verify a ECDSA signature"""
+    (r,s) = signature
+
+    #reconstruct pubkey point
+    curve = Secp256r1()
+    new_pubKey = Point(curve,pubKey.x, pubKey.y)
+    
+    # Calculate message hash
+    hashBytes = hashlib.sha3_256(signed_message.encode("utf8")).digest()
+    h = int.from_bytes(hashBytes, byteorder="big")
+
+    # calculate the modular inverse of the signature proof
+    s_ = pow(s, -1, curve.n)
+    #reconstruct the random point used in signature
+    r_point = (new_pubKey * (r * s_) ) + ( (h * s_) * curve.g)
+    r_ = r_point.x
+    #vertify the signature by comparing the given r value with the one computed
+    return(r_ == r)
 
 
 
 
+def testing_sign_verify():
+    privK,pubK_c,pubK = generate_keypair()
+    (r,s) = ecdsa_sign(privK, 'message')
+    print(verify_signature('message',(r,s),pubK))
+    
+
+testing_sign_verify()
