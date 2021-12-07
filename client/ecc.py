@@ -86,7 +86,7 @@ class Secp256r1(object):
         if y % 2 != (int(pubKey_c[1]) - 2):
             y = -y % self.p
         return Point(self, x, y)
-    
+
     def sign(self, privKey, message):
         """Sign message using privKey."""
         # Calculate message hash
@@ -195,11 +195,9 @@ class Point(object):
             addend += addend
         return result
 
-def main():
+
+if __name__ == "__main__":
     ecc = Secp256r1()
     privKey, pubKey_c = ecc.generate_keypair()
     (r, s) = ecc.sign(privKey, "message")
-    print(ecc.verify_signature("message", (r, s), pubKey_c))
-
-
-main()
+    print(ecc.verify("message", (r, s), pubKey_c))
