@@ -194,10 +194,17 @@ class Point(object):
                 result += addend
             addend += addend
         return result
+    
+    def __str__(self):
+        return f"({self.x}, {self.y})"
+    
+    def __repr__(self):
+        return self.__str__()
 
 
 if __name__ == "__main__":
     ecc = Secp256r1()
+    print(ecc.g)
     privKey, pubKey_c = ecc.generate_keypair()
     (r, s) = ecc.sign(privKey, "message")
     print(ecc.verify("message", (r, s), pubKey_c))
