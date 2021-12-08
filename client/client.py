@@ -1,26 +1,26 @@
-import websocket
+import asyncio
+import socketio
 
+sio = socketio.AsyncClient()
 
-def on_message(ws, message):
-    print(message)
+@sio.event
+async def connect():
+    print('connection established')
+    print("my sid is: ", sio.get_sid())
 
+@sio.event
+async def message(data):
+    print('message received with ', data)
+    await sio.emit('my response', {'response': 'my response'})
 
-def on_error(ws, error):
-    print("WebSocket error:", error)
+@sio.event
+async def disconnect():
+    print('disconnected from server')
 
+async def main():
+    await sio.connect('http://localhost:8080')
+    await sio.send("Hello World")
+    await sio.wait()
 
-# def on_close(ws, close_status_code, close_msg):
-#     print("### closed ###")
-
-
-def on_open(ws):
-    ws.send("Message From Client")
-
-
-if __name__ == "__main__":
-    websocket.enableTrace(True)
-    ws = websocket.WebSocketApp(
-        "ws://localhost:8080", on_open=on_open, on_message=on_message, on_error=on_error
-    )
-
-    ws.run_forever()
+if __name__ == '__main__':
+    asyncio.run(main())
