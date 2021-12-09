@@ -28,6 +28,16 @@ class Client:
         #this is the end goal
         self.symmetric_key = None
 
+    def current_values(self):
+        print("pk_a:",alice.pk_a)
+        print("sk_a:",alice.sk_a)
+        print("CUID:",alice.CUID)
+        print("===========================")
+        print("pk_b",alice.pk_b)
+        print("CUID_b",alice.CUID_b)
+        print("symmetric_key:",alice.symmetric_key)
+        return None
+
 
     def initiate(self):
         """
@@ -62,7 +72,7 @@ class Client:
         str_CUID_b = str(self.CUID_b)
         str_pk_b = str(self.pk_b)
         str_pk_a = str(self.pk_a)
-        message = str(str_CUID + str_CUID_b + str_pk_b + str_pk_a)
+        message = str(str_CUID_b + str_CUID + str_pk_b + str_pk_a)
         signed_sk_x = self.ecc.sign(self.sk_a,message)
 
 
@@ -84,7 +94,7 @@ class Client:
         str_CUID_b = str(self.CUID_b)
         str_pk_b = str(self.pk_b)
         str_pk_a = str(self.pk_a)
-        message = str(str_CUID_b + str_CUID + str_pk_b + str_pk_a) #note the switching of vars between sign and varify 
+        message = str(str_CUID + str_CUID_b + str_pk_a + str_pk_b) #note the switching of vars between sign and varify 
         signed_sk_x = self.ecc.sign(self.sk_a,message)
 
 
@@ -103,9 +113,9 @@ class Client:
 
         return True #dummy true value until we figure it out
 
-    def varify_signed(self,signature):
+    def varify_signed_response_1(self,signature):
         """
-        this function is used in step 5 and 7 
+        this function is used in step 5
         this outputs a boolian value
         """
         
@@ -114,13 +124,28 @@ class Client:
         str_pk_b = str(self.pk_b)
         str_pk_a = str(self.pk_a)
         message = str(str_CUID + str_CUID_b + str_pk_a + str_pk_b)
+        
+        return self.ecc.verify(message,signature,self.pk_b)
+
+    def varify_signed_response_2(self,signature):
+        """
+        this function is used in step 5
+        this outputs a boolian value
+        """
+        
+        str_CUID = str(self.CUID)
+        str_CUID_b = str(self.CUID_b)
+        str_pk_b = str(self.pk_b)
+        str_pk_a = str(self.pk_a)
+        message = str(str_CUID_b + str_CUID + str_pk_b + str_pk_a)
+        
         return self.ecc.verify(message,signature,self.pk_b)
 
 
         #I how will this be done?
-        return True #dummy true value until we figure it out
 
     def calcualte_symmetric_key(self):
+
         
         return Null
 
@@ -130,12 +155,14 @@ class Client:
 
 
 def main():
-    print("start main")
+    #print("start main")
     A = "aliceh72gsb320000udocl363eofy"
     B = "bobh72gsb320000udocl363eofy"
     server_dict = {"alice": A, "bob": B} #the server is the "authority" that each person is really who they say they are 
 
+    print("alice values:")
     alice = Client(A)
+    print("bob values:")
     bob = Client(B)
     
     #check that substantiation worked
@@ -156,10 +183,12 @@ def main():
     bob.CUID_b = message1_list[0]
     bob.pk_b = message1_list[1]
 
+    """
     print("===========================")
     print("check that message 1 worked")
     print("bobs copy of alices A",bob.CUID_b)
     print("bobs copy of alices pk",bob.pk_b)
+    """
 
     #step 2 bob needs to check with the server that alice is really alice======
     is_alice = bob.varify_person_with_server()
@@ -172,11 +201,20 @@ def main():
     
     #step 3====================================================================
     response_1_output_list = bob.response_1()
+    """
     print("===========================")
-    print("check that response 1 worked")
+    print("check that response 1 worked, these values are held by alice:")
     print("response list 1",response_1_output_list)
-    signed_sb = response_1_output_list[-1]
+    """
+    alice.signed_sk_b = response_1_output_list[-1]
+    alice.CUID_b = response_1_output_list[0]
+    alice.pk_b = response_1_output_list[1]
+    """
+    print(alice.CUID_b)
+    print(alice.pk_b)
+    print(alice.signed_sk_b)
     #print("signed_sb",signed_sb)
+    """
     #step 4: varify bob is bob=================================================
     is_bob = alice.varify_person_with_server()
 
@@ -189,21 +227,28 @@ def main():
 
     #step 5: varify signed message from bob====================================
     print("===========================")
-    if alice.varify_signed(signed_sb)== True:
-        print("bobs signed message is valid")
+    #print("alice pk_b ",alice.pk_b)
+    #print("alice signed_sb ",alice.signed_sk_b)
+    if alice.varify_signed_response_1(alice.signed_sk_b) == True: #need to figure out how I want to deal with storing sign_sk_b
+        print("bob's signed message is valid")
     else:
-        print("bobs signed message is invalid")
-
-    """
+        print("bob's signed message is invalid")
     #step 6: alice messages bob back with her info and signed keys=============
-    response_2_output_list = bob.response_2()
-    print("check that response 1 worked")
-    print("response list 2",response_2_output_list)
+    response_2_output_list = alice.response_2()
+    #print("check that response 1 worked")
+    #print("response list 2",response_2_output_list)
 
     #step 7:varify signed message from alice===================================
-    if alice.sign_sk_b == True:
-        print("bobs signed message is valid")
-    """
+
+
+    bob.signed_sk_b = response_2_output_list[-1]
+    bob.pk_b = response_2_output_list[0]
+    print("===========================")
+
+    if bob.varify_signed_response_2(bob.signed_sk_b) == True: #need to figure out how I want to deal with storing sign_sk_b
+        print("alice signed message is valid")
+    else:
+        print("bob's signed message is invalid")
 
 
 main()
