@@ -18,13 +18,13 @@ class Client:
 
         self.ecc = Secp256r1()
         self.CUID = c
-        self.sk_a = self.ecc.generate_private_key() 
-        self.pk_a = self.ecc.generate_public_key(self.sk_a)
-        #we are assuming that the Clinet knows g without needing to talk to the server
-
+        self.sk_a,self.pk_a = self.ecc.generate_keypair() #note that the pubic key is a hashed public key
         self.g = self.ecc.g
+
         self.pk_b = None
         self.CUID_b = None
+        self.sign_sk_b = None #I really don't need to save 
+
         #this is the end goal
         self.symmetric_key = None
 
@@ -45,7 +45,15 @@ class Client:
         this is step 3 in the diagram 
 
         output:
-            responce_list = [CUID,pk,sign_sk(A,B,Pk_a,pk_b)
+            responce_list = [CUID,pk,sign_sk(A,B,Pk_a,pk_b) where:
+            CUID: is alices "name"
+            pk: alices privet key
+            sign_sk = is a tuple of (r,s) where:
+             is the x coordinate of a random point
+                r is a random point's x (x,y); this random point in field is calculated with g and a random number k
+                s: is a number calculated with current client's private key, k, r and other stuff in the field
+
+                
         """
         if self.CUID_b == None or self.pk_b == None:
             print("error in response function of,  ",self.CUID_b,"other client has not made contact yet")
@@ -76,7 +84,7 @@ class Client:
         str_CUID_b = str(self.CUID_b)
         str_pk_b = str(self.pk_b)
         str_pk_a = str(self.pk_a)
-        message = str(str_CUID + str_CUID_b + str_pk_b + str_pk_a)
+        message = str(str_CUID_b + str_CUID + str_pk_b + str_pk_a) #note the switching of vars between sign and varify 
         signed_sk_x = self.ecc.sign(self.sk_a,message)
 
 
@@ -91,12 +99,22 @@ class Client:
         ask the db in on the server if the CUID of the other person matches their public key
         """
         if self.CUID_b == None or self.pk_b == None:
-            print("error in response function of,  ",self.CUID_b,"other client has not made contact yet")
+            print("error in response function of,  ",str(self.CUID_b),"other client has not made contact yet")
 
         return True #dummy true value until we figure it out
 
-    def varify_signed(self,message,public_key,pk_b):
-        self.ecc.verify()
+    def varify_signed(self,signature):
+        """
+        this function is used in step 5 and 7 
+        this outputs a boolian value
+        """
+        
+        str_CUID = str(self.CUID)
+        str_CUID_b = str(self.CUID_b)
+        str_pk_b = str(self.pk_b)
+        str_pk_a = str(self.pk_a)
+        message = str(str_CUID + str_CUID_b + str_pk_a + str_pk_b)
+        return self.ecc.verify(message,signature,self.pk_b)
 
 
         #I how will this be done?
@@ -118,6 +136,7 @@ def main():
     server_dict = {"alice": A, "bob": B} #the server is the "authority" that each person is really who they say they are 
 
     alice = Client(A)
+    bob = Client(B)
     
     #check that substantiation worked
     #print(alice.pk_a)
@@ -130,10 +149,9 @@ def main():
     #print(alice.g)
     #print(alice.symmetric_key)
 
-    bob = Client(B)
 
 
-    #step 1 started by alice 
+    #step 1 started by alice===================================================
     message1_list = alice.initiate()
     bob.CUID_b = message1_list[0]
     bob.pk_b = message1_list[1]
@@ -143,7 +161,7 @@ def main():
     print("bobs copy of alices A",bob.CUID_b)
     print("bobs copy of alices pk",bob.pk_b)
 
-    #step 2 bob needs to check with the server that alice is really alice 
+    #step 2 bob needs to check with the server that alice is really alice======
     is_alice = bob.varify_person_with_server()
 
     if is_alice == True:
@@ -152,23 +170,40 @@ def main():
     else:
         print("alice is not who shes says she is")
     
-    #step 3
+    #step 3====================================================================
     response_1_output_list = bob.response_1()
     print("===========================")
     print("check that response 1 worked")
     print("response list 1",response_1_output_list)
+    signed_sb = response_1_output_list[-1]
+    #print("signed_sb",signed_sb)
+    #step 4: varify bob is bob=================================================
+    is_bob = alice.varify_person_with_server()
+
+    print("===========================")
+    if is_bob == True:
+        print("BOB IS BOB")
+            #message2_list = bob.response() #this is step 3
+    else:
+        print("bob is not who shes says she is")
+
+    #step 5: varify signed message from bob====================================
+    print("===========================")
+    if alice.varify_signed(signed_sb)== True:
+        print("bobs signed message is valid")
+    else:
+        print("bobs signed message is invalid")
+
     """
-
-    #step 4: varify bob is bob
-
-    #step 5: varify signed message from bob
-
-    """
-    #step 6: alice messages bob back with her info and signed keys
+    #step 6: alice messages bob back with her info and signed keys=============
     response_2_output_list = bob.response_2()
     print("check that response 1 worked")
     print("response list 2",response_2_output_list)
 
-    #step 7:
+    #step 7:varify signed message from alice===================================
+    if alice.sign_sk_b == True:
+        print("bobs signed message is valid")
+    """
+
 
 main()
