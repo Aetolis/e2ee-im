@@ -20,15 +20,15 @@ class Secp256r1(object):
         """Generate a new private key."""
         # Generate a random private key
         privKey = secrets.randbelow(self.n)
-        print("privKey", privKey)
+        print("privKey:", hex(privKey))
         return privKey
 
     def generate_public_key(self, privKey):
         """Generate a compressed public key from a private key."""
         pubKey = self.g * privKey
-        # Compress pubKey
-        pubKey_c = "0" + str(2 + pubKey.y % 2) + str(hex(pubKey.x)[2:])
-        print("pubKey:", pubKey_c)
+        # Compress pubKey - 0x02 if y is even, 0x03 if y is odd
+        pubKey_c = "0x0" + str(2 + pubKey.y % 2) + str(hex(pubKey.x)[2:])
+        print("pubKey_c:", pubKey_c)
         return pubKey_c
 
     def generate_keypair(self):
@@ -41,7 +41,7 @@ class Secp256r1(object):
 
     @staticmethod
     def mod_sqrt(a, p):
-        """Find a quadratic residue (mod p) of a"""
+        """Find a quadratic residue (mod p) of a using Tonelli-Shanks."""
         # Partition p-1 to s * 2^e for an odd s
         s = p - 1
         e = 0
@@ -58,10 +58,14 @@ class Secp256r1(object):
             ls = pow(n, (p - 1) // 2, p)
             ls = False if ls == p - 1 else ls
 
-        x = pow(a, (s + 1) // 2, p)  # a guess of the square root
-        b = pow(a, s, p)  # how much we're off with the guess
-        g = pow(n, s, p)  # used to update
-        r = e  # the exponent
+        # A guess of the square root
+        x = pow(a, (s + 1) // 2, p)
+        # How much we're off with the guess
+        b = pow(a, s, p)
+        # Used to update
+        g = pow(n, s, p)
+        # The exponent
+        r = e
 
         while True:
             t = b
@@ -80,10 +84,10 @@ class Secp256r1(object):
 
     def reconstruct_pubkey(self, pubKey_c):
         """Reconstruct public key from compressed format."""
-        x = int("0x" + pubKey_c[2:], 16)
+        x = int("0x" + pubKey_c[4:], 16)
         n = x ** 3 + self.a * x + self.b
         y = self.mod_sqrt(n, self.p)
-        if y % 2 != (int(pubKey_c[1]) - 2):
+        if y % 2 != (int(pubKey_c[3]) - 2):
             y = -y % self.p
         return Point(self, x, y)
 
@@ -194,13 +198,13 @@ class Point(object):
                 result += addend
             addend += addend
         return result
-    
+
     def __iter__(self):
         return iter((self.x, self.y))
-    
+
     def __str__(self):
         return f"({self.x}, {self.y})"
-    
+
     def __repr__(self):
         return self.__str__()
 
