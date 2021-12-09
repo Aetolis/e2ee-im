@@ -1,11 +1,8 @@
 import secrets 
-import mock_key_builder.py # I am using this to create mock keys 
-from ecc.py import Secp256r1
+#import mock_key_builder.py # I am using this to create mock keys 
+from ecc import Secp256r1
+from ecc import Point
 
-
-A = aliceh72gsb320000udocl363eofy
-
-B = bobh72gsb320000udocl363eofy
 
 #ecc = Secp256r1()
 
@@ -17,26 +14,22 @@ class Client:
     """
 
     #we need a instance of ecc to do the gen gen?
-    ecc = Secp256r1()
     def __init__(self,c):
 
+        self.ecc = Secp256r1()
         self.CUID = c
-        pk_a = ecc.generate_private_key() 
-        sk_a = ecc.generate_public_key(pk_a)
+        self.sk_a = self.ecc.generate_private_key() 
+        self.pk_a = self.ecc.generate_public_key(self.sk_a)
         #we are assuming that the Clinet knows g without needing to talk to the server
-        g = ecc.g
-        #we don't need a p becuase it is not applicable to the ecc version of diffie_hellamn 
 
-    #the information about the other Client that we will need to authenticate
-    pk_b = None
-    sk_b = None
-    CUID_b = None
-    
-    #this is the end goal of ecc_dh 
-    symmetric_key = None
+        self.g = self.ecc.g
+        self.pk_b = None
+        self.CUID_b = None
+        #this is the end goal
+        self.symmetric_key = None
 
 
-    def initiate(self);
+    def initiate(self):
         """
         this is step 1 in the diagram
         initaite is the first message in diffie_hellan
@@ -45,21 +38,51 @@ class Client:
         output: a python list of the classes CUID and their pk (public key)
         """
         inital_message = [self.CUID,self.pk_a]
-        return return_list #return or send to the server to send to bob
+        return inital_message
     
-    def response(self):
+    def response_1(self):
         """
-        this is step 3 and 6 in the diagram
-        this can either be the responce to the initate or to the response of bob
+        this is step 3 in the diagram 
 
         output:
             responce_list = [CUID,pk,sign_sk(A,B,Pk_a,pk_b)
         """
-        if B = None or pk_b = None:
-            print("error in response function of,  ",CUID,"other client has not made contact yet")
+        if self.CUID_b == None or self.pk_b == None:
+            print("error in response function of,  ",self.CUID_b,"other client has not made contact yet")
+            return None 
+        str_CUID = str(self.CUID)
+        str_CUID_b = str(self.CUID_b)
+        str_pk_b = str(self.pk_b)
+        str_pk_a = str(self.pk_a)
+        message = str(str_CUID + str_CUID_b + str_pk_b + str_pk_a)
+        signed_sk_x = self.ecc.sign(self.sk_a,message)
 
-        responce_list = [self.CUID,self.B,self.pk_a,self.pk_b]
+
+        responce_list = [self.CUID,self.pk_a,signed_sk_x]
         return responce_list
+
+    def response_2(self):
+
+        """
+        this is step 3 in the diagram 
+
+        output:
+            responce_list = [CUID,pk,sign_sk(A,B,Pk_a,pk_b)
+        """
+        if self.CUID_b == None or self.pk_b == None:
+            print("error in response function of,  ",self.CUID_b,"other client has not made contact yet")
+            return None 
+        str_CUID = str(self.CUID)
+        str_CUID_b = str(self.CUID_b)
+        str_pk_b = str(self.pk_b)
+        str_pk_a = str(self.pk_a)
+        message = str(str_CUID + str_CUID_b + str_pk_b + str_pk_a)
+        signed_sk_x = self.ecc.sign(self.sk_a,message)
+
+
+        responce_list = [self.pk_a,signed_sk_x]
+        return responce_list
+
 
 
     def varify_person_with_server(self):
@@ -67,12 +90,14 @@ class Client:
         this is step 2 and 4 in diagram
         ask the db in on the server if the CUID of the other person matches their public key
         """
-        if B = None or pk_b = None:
-            print("error in response function of,  ",CUID,"other client has not made contact yet")
+        if self.CUID_b == None or self.pk_b == None:
+            print("error in response function of,  ",self.CUID_b,"other client has not made contact yet")
 
         return True #dummy true value until we figure it out
 
-    def varify_signed(self):
+    def varify_signed(self,message,public_key,pk_b):
+        self.ecc.verify()
+
 
         #I how will this be done?
         return True #dummy true value until we figure it out
@@ -86,46 +111,64 @@ class Client:
 #=============================================================================
 
 
-main():
+def main():
+    print("start main")
+    A = "aliceh72gsb320000udocl363eofy"
+    B = "bobh72gsb320000udocl363eofy"
+    server_dict = {"alice": A, "bob": B} #the server is the "authority" that each person is really who they say they are 
+
     alice = Client(A)
+    
+    #check that substantiation worked
+    #print(alice.pk_a)
+    #print(alice.sk_a)
+    #print(alice.g)
+    #print(alice.CUID)
+    #print("===========================")
+    #print(alice.pk_b)
+    #print(alice.CUID_b)
+    #print(alice.g)
+    #print(alice.symmetric_key)
+
     bob = Client(B)
 
-    server_dict = {"alice": A, "bob": B} #the server is the "authority" that each person is really who they say they are 
 
     #step 1 started by alice 
     message1_list = alice.initiate()
-    bob.B = message1_list[0]
+    bob.CUID_b = message1_list[0]
     bob.pk_b = message1_list[1]
 
-    #step 2 bob
-    is_alice = bob.varify_signed()
+    print("===========================")
+    print("check that message 1 worked")
+    print("bobs copy of alices A",bob.CUID_b)
+    print("bobs copy of alices pk",bob.pk_b)
+
+    #step 2 bob needs to check with the server that alice is really alice 
+    is_alice = bob.varify_person_with_server()
 
     if is_alice == True:
-        message2_list = bob.response() #this is step 3
+        print("ALICE IS ALICE")
+        #message2_list = bob.response() #this is step 3
     else:
         print("alice is not who shes says she is")
+    
+    #step 3
+    response_1_output_list = bob.response_1()
+    print("===========================")
+    print("check that response 1 worked")
+    print("response list 1",response_1_output_list)
+    """
 
-    #step 4
-    alice.B = message2_list[0]
-    alice.pk_b = message2_list[3]
+    #step 4: varify bob is bob
 
-    is_bob = alice.varify_signed()
-    if is_bob== True:
-        alice.varify_signed()
-    else:
-        print("alice is not who shes says she is")
+    #step 5: varify signed message from bob
 
+    """
+    #step 6: alice messages bob back with her info and signed keys
+    response_2_output_list = bob.response_2()
+    print("check that response 1 worked")
+    print("response list 2",response_2_output_list)
 
+    #step 7:
 
-
-
-
-
-
-
-
-
-
-
-
-
+main()
