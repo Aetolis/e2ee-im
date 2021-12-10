@@ -29,13 +29,13 @@ class Client:
         self.symmetric_key = None
 
     def current_values(self):
-        print("pk_a:",alice.pk_a)
-        print("sk_a:",alice.sk_a)
-        print("CUID:",alice.CUID)
+        print("pk_a:",self.pk_a)
+        print("sk_a:",self.sk_a)
+        print("CUID:",self.CUID)
         print("===========================")
-        print("pk_b",alice.pk_b)
-        print("CUID_b",alice.CUID_b)
-        print("symmetric_key:",alice.symmetric_key)
+        print("pk_b",self.pk_b)
+        print("CUID_b",self.CUID_b)
+        print("symmetric_key:",self.symmetric_key)
         return None
 
 

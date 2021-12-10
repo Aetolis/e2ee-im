@@ -17,14 +17,27 @@ class Secp256r1(object):
         )
 
     def generate_private_key(self):
-        """Generate a new private key."""
+        """Generate a new private key.
+        input:
+        self: (Secp256r1) 
+
+        output:
+        privKey: (int) a randomly generated private key bound by n
+        """
         # Generate a random private key
         privKey = secrets.randbelow(self.n)
         print("privKey:", hex(privKey))
         return privKey
 
     def generate_public_key(self, privKey):
-        """Generate a compressed public key from a private key."""
+        """Generate a compressed public key from a private key.
+        input:
+        self: (Secp256r1) 
+        privKey: (int) the private Key
+
+        output:
+        pubKey: (string) the compressed form of the public key point  
+        """
         pubKey = self.g * privKey
         # Compress pubKey - 0x02 if y is even, 0x03 if y is odd
         pubKey_c = "0x0" + str(2 + pubKey.y % 2) + str(hex(pubKey.x)[2:])
@@ -32,7 +45,14 @@ class Secp256r1(object):
         return pubKey_c
 
     def generate_keypair(self):
-        """Generate a new keypair."""
+        """Generate a new keypair.
+        input:
+        self: (Secp256r1)
+
+        output:
+        privKey: (int) a randomly generated private key bound by n
+        pubKey: (string) the compressed form of the public key corresponding to the private key
+        """
         # Generate a random private key
         privKey = self.generate_private_key()
         # Generate a public key from a private key
@@ -41,7 +61,14 @@ class Secp256r1(object):
 
     @staticmethod
     def mod_sqrt(a, p):
-        """Find a quadratic residue (mod p) of a using Tonelli-Shanks."""
+        """Find a quadratic residue (mod p) of a using Tonelli-Shanks.
+        input: 
+        a: (int)
+        p: (int)
+        
+        output:
+        x : (int) one of the quadratic residue (mod p) of a
+        """
         # Partition p-1 to s * 2^e for an odd s
         s = p - 1
         e = 0
@@ -83,7 +110,14 @@ class Secp256r1(object):
             r = m
 
     def reconstruct_pubkey(self, pubKey_c):
-        """Reconstruct public key from compressed format."""
+        """Reconstruct public key from compressed format.
+        input:
+        self: (Secp256r1)
+        pubKey_c: (string) the compressed form of the public key
+
+        output:
+        Point(self, x, y) : (point) the public Key as a point object
+        """
         x = int("0x" + pubKey_c[4:], 16)
         n = x ** 3 + self.a * x + self.b
         y = self.mod_sqrt(n, self.p)
@@ -92,7 +126,15 @@ class Secp256r1(object):
         return Point(self, x, y)
 
     def sign(self, privKey, message):
-        """Sign message using privKey."""
+        """Sign message using privKey.
+        input:
+        self:(Secp256r1)
+        privKey: (int) a randomly generated private key bound by n
+        message: (string) the message needs to be signed
+
+        output:
+        the signature, a tuple of two ints (r,s)
+        """
         # Calculate message hash
         hashBytes = hashlib.sha3_256(message.encode("utf8")).digest()
         h = int.from_bytes(hashBytes, byteorder="big")
@@ -109,7 +151,16 @@ class Secp256r1(object):
         return (r, s)
 
     def verify(self, message, signature, pubKey_c):
-        """Verify a ECDSA signature."""
+        """Verify a ECDSA signature.
+        input:
+        self:(Secp256r1)
+        message: (string) the signed message
+        signature: (a tuple of 2 ints) the signature comes with the message
+        pubKey_c: (string) the compressed form of the public key
+        
+        output:
+        a boolean value showing whether the signature of this message is valid 
+        """
         r, s = signature
 
         # Reconstruct pubKey from compressed format
