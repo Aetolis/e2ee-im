@@ -12,10 +12,8 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  IK_B      Bytes    @db.ByteA
-  SPK_B     Bytes    @db.ByteA
-  Sig       Bytes    @db.ByteA
+  username  String   @unique
+  pubKey_c  String
   createdAt DateTime @default(now())
 }
 
