@@ -145,9 +145,9 @@ class Client:
         #I how will this be done?
 
     def calcualte_symmetric_key(self):
-
-        
-        return Null
+        point_public_key = self.ecc.reconstruct_pubkey(self.pk_b)
+        #print(point_public_key)
+        return self.sk_a*point_public_key
 
 
 #end of class Client 
@@ -250,5 +250,7 @@ def main():
     else:
         print("bob's signed message is invalid")
 
+    print(alice.calcualte_symmetric_key())
+    print(bob.calcualte_symmetric_key())
 
 main()
