@@ -1,11 +1,16 @@
-import socketio
-import os.path
-import base64
 import sys
+import base64
+import hashlib
+import os.path
+import socketio
+import ecdsa.util
+
+from ecdsa import SigningKey, VerifyingKey, SECP256k1
 from ecc import Secp256r1
 
 
 ecc = Secp256r1()
+
 
 def read_keypair():
     """Reads a keypair from a file."""
@@ -21,11 +26,13 @@ def read_keypair():
         f.write(base64.b64encode(f"{hex(privKey)},{pubKey_c}".encode("ASCII")))
     return privKey, pubKey_c
 
+
 # Read or generate keypair
 privKey, pubKey_c = read_keypair()
 
 # Create a socketio client
 sio = socketio.Client()
+
 
 @sio.event
 def connect():
@@ -36,45 +43,49 @@ def connect():
     # print("sig:", sig)
     # sio.emit("response_sig", {"sig": sig, "pubKey_c": pubKey_c})
 
-@sio.event
+
+@sio.on("connect_error")
 def connect_error(data):
     print("\nThe connection failed!")
     print(data["message"])
     print(data["data"]["content"])
 
-from ecdsa import SigningKey, VerifyingKey, SECP256k1
-import ecdsa.util
-import hashlib
 
 @sio.on("request_sig")
 def request_sig(data):
     print("\nReceived request_sig:", data)
-    sig = ecc.sign(privKey, sio.get_sid()+data)
+    sig = ecc.sign(privKey, sio.get_sid() + data)
     sk = SigningKey.from_string(bytearray.fromhex(hex(privKey)[2:]), curve=SECP256k1)
     vk = VerifyingKey.from_string(bytearray.fromhex(pubKey_c[2:]), curve=SECP256k1)
-    sig = sk.sign((sio.get_sid()+data).encode("UTF-8"), hashfunc=hashlib.sha256, sigencode=ecdsa.util.sigencode_der_canonize)
+    sig = sk.sign(
+        (sio.get_sid() + data).encode("UTF-8"),
+        hashfunc=hashlib.sha256,
+        sigencode=ecdsa.util.sigencode_der_canonize,
+    )
     sio.emit("response_sig", {"sig": sig, "pubKey_c": vk.to_pem()})
+
 
 @sio.on("authentication_success")
 def authentication_success():
     print("\nAuthentication successful!")
 
+
 @sio.on("authentication_error")
 def authentication_error():
     print("\nAuthentication error!")
-    sio.disconnect()
     sys.exit(1)
 
-    
 
 @sio.event
 def message(msg_txt):
     print("Server:", msg_txt)
     # sio.emit("my response", {"response": "my response"})
 
+
 @sio.event
 def disconnect():
     print("Disconnected from server")
+
 
 if __name__ == "__main__":
     print(
@@ -95,11 +106,17 @@ if __name__ == "__main__":
     try:
         sio.connect(
             "http://localhost:8080",
-            auth={"username": username, "pubKey_c": pubKey_c},
+            auth={
+                "username": username,
+                "pubKey_c": VerifyingKey.from_string(
+                    bytearray.fromhex(pubKey_c[2:]), curve=SECP256k1
+                )
+                .to_pem()
+                .decode("UTF-8"),
+            },
         )
     except socketio.exceptions.ConnectionError as e:
         sys.exit(1)
-        
 
     # Send username and keypair to server
     # sio.emit("login", {"username": username, "pubKey_c": pubKey_c})
