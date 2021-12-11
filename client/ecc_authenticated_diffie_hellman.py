@@ -72,7 +72,7 @@ class Client:
         str_CUID_b = str(self.CUID_b)
         str_pk_b = str(self.pk_b)
         str_pk_a = str(self.pk_a)
-        message = str(str_CUID_b + str_CUID + str_pk_b + str_pk_a)
+        message = str_CUID_b + str_CUID + str_pk_b + str_pk_a
         signed_sk_x = self.ecc.sign(self.sk_a,message)
 
 
@@ -94,7 +94,7 @@ class Client:
         str_CUID_b = str(self.CUID_b)
         str_pk_b = str(self.pk_b)
         str_pk_a = str(self.pk_a)
-        message = str(str_CUID + str_CUID_b + str_pk_a + str_pk_b) #note the switching of vars between sign and varify 
+        message = str(str_CUID) + str(str_CUID_b) + str(str_pk_a) + str(str_pk_b) #note the switching of vars between sign and varify 
         signed_sk_x = self.ecc.sign(self.sk_a,message)
 
 
@@ -123,7 +123,7 @@ class Client:
         str_CUID_b = str(self.CUID_b)
         str_pk_b = str(self.pk_b)
         str_pk_a = str(self.pk_a)
-        message = str(str_CUID + str_CUID_b + str_pk_a + str_pk_b)
+        message = str_CUID + str_CUID_b + str_pk_a + str_pk_b
         
         return self.ecc.verify(message,signature,self.pk_b)
 
@@ -154,17 +154,18 @@ class Client:
 #=============================================================================
 
 
-def main():
+def main():#alice,bob):
+    
     #print("start main")
     A = "aliceh72gsb320000udocl363eofy"
     B = "bobh72gsb320000udocl363eofy"
     server_dict = {"alice": A, "bob": B} #the server is the "authority" that each person is really who they say they are 
 
-    print("alice values:")
+    #print("alice values:")
     alice = Client(A)
-    print("bob values:")
+    #print("bob values:")
     bob = Client(B)
-    
+    """
     #check that substantiation worked
     #print(alice.pk_a)
     #print(alice.sk_a)
@@ -175,11 +176,16 @@ def main():
     #print(alice.CUID_b)
     #print(alice.g)
     #print(alice.symmetric_key)
-
+    """
 
 
     #step 1 started by alice===================================================
+    #username = input("Please enter your public key and CUID: ")
+    #print("Alice sents her public key and CUID to bob")
+    
     message1_list = alice.initiate()
+    #print('Bob receives:')
+    #print(message1_list)
     bob.CUID_b = message1_list[0]
     bob.pk_b = message1_list[1]
 
@@ -191,6 +197,7 @@ def main():
     """
 
     #step 2 bob needs to check with the server that alice is really alice======
+    
     is_alice = bob.varify_person_with_server()
 
     if is_alice == True:
@@ -249,8 +256,9 @@ def main():
         print("alice signed message is valid")
     else:
         print("bob's signed message is invalid")
-
+    
+    print()
     print(alice.calcualte_symmetric_key())
     print(bob.calcualte_symmetric_key())
 
-main()
+#main()
