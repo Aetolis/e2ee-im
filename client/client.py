@@ -62,7 +62,7 @@ def request_sig(data):
         hashfunc=hashlib.sha256,
         sigencode=ecdsa.util.sigencode_der_canonize,
     )
-    sio.emit("response_sig", {"sig": sig, "pubKey_c": vk.to_pem()})
+    sio.emit("response_sig", {"sig": sig, "pubKey_pem": vk.to_pem()})
 
 
 @sio.on("authentication_success")
@@ -75,6 +75,57 @@ def authentication_error():
     print("\nAuthentication error!")
     sys.exit(1)
 
+# A_sig = None
+# A_pub = None
+
+@sio.on("start_ECDH")
+def start_ECDH(data):
+    print("\nReceived start_ECDH:")
+    global A_sig 
+    A_sig = data["id_A"] + sio.get_sid() + data["pubKey_A"] + pubKey_c
+    global A_pub 
+    A_pub = data["pubKey_A"]
+    sio.emit(
+        "responseB_ECDH",
+        {
+            "B_id": sio.get_sid(),
+            "pubKey_B": pubKey_c,
+            "sig": str(ecc.sign(
+                privKey, data["id_A"] + sio.get_sid() + data["pubKey_A"] + pubKey_c
+            )),
+        },
+    )
+
+@sio.on("startA_ECDH")
+def startA_ECDH(data):
+    message = sio.get_sid() + data["id_B"] + pubKey_c + data["pubKey_B"]
+    data["sig"] = [int(i) for i in data["sig"][1:-1].split(", ")]
+    if not ecc.verify(message, data["sig"], data["pubKey_B"]):
+        print("\nECDH error!")
+        sio.disconnect()
+    
+    sio.emit(
+        "responseA_ECDH",
+        {
+            "A_id": sio.get_sid(),
+            "sig": str(ecc.sign(
+                privKey,  sio.get_sid() + data["id_B"] + pubKey_c + data["pubKey_B"]
+            )),
+        },
+    )
+
+    shared_key = ecc.reconstruct_pubkey(data["pubKey_B"]) * privKey
+    print("\nShared key:", shared_key)
+
+
+@sio.on("finalB_ECDH")
+def finalB_ECDH(data):
+    data["sig"] = [int(i) for i in data["sig"][1:-1].split(", ")]
+    if not ecc.verify(A_sig, data["sig"], A_pub):
+        print("\nECDH error!")
+        sio.disconnect()
+    shared_key = ecc.reconstruct_pubkey(A_pub) * privKey
+    print("\nShared key:", shared_key)
 
 @sio.event
 def message(msg_txt):
@@ -108,15 +159,20 @@ if __name__ == "__main__":
             "http://localhost:8080",
             auth={
                 "username": username,
-                "pubKey_c": VerifyingKey.from_string(
+                "pubKey_pem": VerifyingKey.from_string(
                     bytearray.fromhex(pubKey_c[2:]), curve=SECP256k1
                 )
                 .to_pem()
                 .decode("UTF-8"),
+                "pubKey_c": pubKey_c,
             },
         )
     except socketio.exceptions.ConnectionError as e:
         sys.exit(1)
+
+    # Wait for other client to connect
+    sio.wait()
+    print("Waiting for other client to connect...")
 
     # Send username and keypair to server
     # sio.emit("login", {"username": username, "pubKey_c": pubKey_c})

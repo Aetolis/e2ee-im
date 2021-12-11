@@ -11,14 +11,17 @@ const io = new Server(httpServer, {
   /* options */
 });
 
+let A_id;
+let B_id;
+
 // Define authentication middleware
 io.use(async (socket, next) => {
   // Get username and pubKey_C
   const username = socket.handshake.auth.username;
-  const pubKey_c = socket.handshake.auth.pubKey_c;
+  const pubKey_pem = socket.handshake.auth.pubKey_pem;
 
   // Get user from database
-  console.log("Get username and pubKey_C", username, pubKey_c);
+  console.log("Get username and pubKey_pem", username, pubKey_pem);
 
   const user = await prisma.user.findUnique({
     where: {
@@ -33,7 +36,7 @@ io.use(async (socket, next) => {
     await prisma.user.create({
       data: {
         username: username,
-        pubKey_c: pubKey_c,
+        pubKey_c: pubKey_pem,
       },
     });
     socket.send("New user:" + username);
@@ -41,7 +44,7 @@ io.use(async (socket, next) => {
   } else {
     console.log("User already exists:", user.username);
     // Verify user provided pubKey_c matches database
-    if (user.pubKey_c != pubKey_c) {
+    if (user.pubKey_c != pubKey_pem) {
       // console.log("User pubKey_c does not match:", username, pubKey_c);
       console.log("Authentication error: public key does not match user!");
       const err = new Error(
@@ -81,11 +84,11 @@ io.on("connection", (socket) => {
     });
 
     // Verify user provided pubKey_c matches database
-    if (user.pubKey_c != data["pubKey_c"]) {
+    if (user.pubKey_c != data["pubKey_pem"]) {
       console.log(
         "User pubKey_c does not match:",
         socket.handshake.auth.username,
-        data["pubKey_c"]
+        data["pubKey_pem"]
       );
       console.log("Signature verification failed!");
       socket.emit("authentication_error");
@@ -97,7 +100,7 @@ io.on("connection", (socket) => {
       crypto.verify(
         "SHA256",
         Buffer.from(socket.id + rand_token),
-        data["pubKey_c"],
+        data["pubKey_pem"],
         data["sig"]
       )
     ) {
@@ -109,6 +112,40 @@ io.on("connection", (socket) => {
       socket.disconnect();
     }
   });
+
+
+
+  if (io.engine.clientsCount == 2) {
+    console.log("Two clients connected!", socket.handshake.auth.username);
+    A_id = socket.id;
+  } else {
+    console.log("Waiting for other client...");
+    B_id = socket.id;
+  }
+
+  if (socket.id == A_id) {
+    console.log("starting A", B_id);
+    socket.to(B_id).emit("start_ECDH", {id_A: socket.id, pubKey_A: socket.handshake.auth.pubKey_c});
+
+  }
+
+  socket.on("responseB_ECDH", (data) => {
+    console.log("Received ECDH from B...");
+    console.log("data:", data);
+    socket.to(A_id).emit("startA_ECDH", {id_B: data["B_id"], pubKey_B: data["pubKey_B"], "sig": data["sig"]});
+  });
+
+  socket.on("responseA_ECDH", (data) => {
+    console.log("Received ECDH from A...");
+    console.log("data:", data);
+    socket.to(B_id).emit("finalB_ECDH", {id_A: data["A_id"], "sig": data["sig"]});
+  });
+
+  if (socket.id == B_id) {
+
+  }
+
+
 
   // socket.on("login", (data) => {
   //   console.log("login: ", data);
