@@ -168,26 +168,56 @@ def main():
         backend = default_backend()
         #while(len(clients)>1):
         message = input("Now enter message you wanna sent, and we'll show the encrypetd message that will sent to the other client.")          
-        """"
-        iv = os.urandom(16)
-        shared_key_b = convert_shared_key_to_bytes(shared_key)
-        cipher = Cipher(algorithms.AES(shared_key_b), modes.CBC(iv), backend=backend)
-        encryptor = cipher.encryptor()
-        ct = encryptor.update(b"a secret message") + encryptor.finalize()
-        decryptor = cipher.decryptor()
-        decryptor.update(ct) + decryptor.finalize()
-        """
-    """
-    key_string = str(shared_key.x) + str(shared_key.y)
-    for i in range(len(message)):
-        message_b = bin(ord(message[i]))
-        key_b = bin(ord(key_string[i % len(key_string)]))
-        for j in range(8):
-            """
-
-
+        enc = encryp(message,shared_key)
+        print(enc)
+        print("and to decryp it with the shared key, we get:")
+        dec = decryp(enc,shared_key)
+        print(dec)
     
-
-
+def encryp(message,shared_key):
+    key_string = str(shared_key.x) + str(shared_key.y)
+    message_b = ''
+    for x in message:
+        a = bin(ord(x))[2:]
+        for i in range(8 - len(a)):
+            a = '0' + a
+        message_b = message_b + a
+    key_b = ''.join(format(ord(x), 'b') for x in key_string)
+    enc_m = ''
+    for i in range(len(message_b)):
+        if message_b[i] == key_b[i % len(key_b)]:
+            enc_m = enc_m + '0'
+        else:
+            enc_m = enc_m + '1'
+    #print(enc_m)
+    ascii_string = ''
+    for i in range(0,len(enc_m),8):
+        ascii_string = ascii_string + chr(int(enc_m[i:i+8],2))
+    #ascii_string = "".join([chr(int(binary, 2)) for binary in enc_m.split(" ")])
+    return (ascii_string)
+    
+def decryp(message,shared_key):
+    key_string = str(shared_key.x) + str(shared_key.y)
+    message_b = ''
+    for x in message:
+        a = bin(ord(x))[2:]
+        for i in range(8 - len(a)):
+            a = '0' + a
+        message_b = message_b + a
+    key_b = ''.join(format(ord(x), 'b') for x in key_string)
+    recover = ""
+    for i in range(len(message_b)):
+        if message_b[i] == '0':
+            recover = recover + key_b[i % len(key_b)]
+        else:
+            recover = recover + str ((1+int(key_b[i % len(key_b)])) % 2)
+    #print (recover)
+    ascii_string = ''
+    for i in range(0,len(recover),8):
+        ascii_string = ascii_string + chr(int(recover[i:i+8],2))
+    return(ascii_string)
+    #print('recover is', ascii_string)
 
 main()
+
+
