@@ -24,11 +24,16 @@ def login_process(usernames, clients):
                 print("Generate random token...")
                 token = os.urandom(32)
                 print('Your token is:', token)
-                r,s = input('Please sign this token:').split()
-                #signature = clients[username].ecc.sign(privKey, token)
-                #print("signature is:", signature)
+                simulate_or_not = input('Please sign this token (enter 0 if you just wanna see the simulation of what the correct signature should be):')
+                if simulate_or_not == '0':
+                    r,s = clients[username].ecc.sign(clients[username].sk_a, str(token))
+                    print("signature is:", r,s)
+                else:
+                    r,s = simulate_or_not.split()
+                    r = int(r)
+                    s = int(s)
                 print("Received signature from client...")
-                sign = verification.verify(str(token), (int(r),int(s)), pubK)
+                sign = verification.verify(str(token), (r,s), pubK)
                 if not sign:
                     print("Authentication error: signature does not match user!")
                     print("Please try another username.")
@@ -172,6 +177,13 @@ def main():
         decryptor = cipher.decryptor()
         decryptor.update(ct) + decryptor.finalize()
         """
+    """
+    key_string = str(shared_key.x) + str(shared_key.y)
+    for i in range(len(message)):
+        message_b = bin(ord(message[i]))
+        key_b = bin(ord(key_string[i % len(key_string)]))
+        for j in range(8):
+            """
 
 
     
