@@ -169,7 +169,7 @@ def main():
         #while(len(clients)>1):
         message = input("Now enter message you wanna sent, and we'll show the encrypetd message that will sent to the other client.")          
         enc = encryp(message,shared_key)
-        print(enc)
+        print("the encrypted message is:" , enc)
         print("and to decryp it with the shared key, we get:")
         dec = decryp(enc,shared_key)
         print(dec)
