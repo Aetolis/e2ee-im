@@ -1,13 +1,17 @@
 import sys
+import time
 import base64
 import hashlib
 import os.path
 import socketio
 import ecdsa.util
 
+from Crypto.Cipher import AES
 from ecdsa import SigningKey, VerifyingKey, SECP256k1
 from ecc import Secp256r1
 
+flag = False
+# shared_key = None
 
 ecc = Secp256r1()
 
@@ -67,7 +71,7 @@ def request_sig(data):
 
 @sio.on("authentication_success")
 def authentication_success():
-    print("\nAuthentication successful!")
+    pass
 
 
 @sio.on("authentication_error")
@@ -75,26 +79,27 @@ def authentication_error():
     print("\nAuthentication error!")
     sys.exit(1)
 
-# A_sig = None
-# A_pub = None
 
 @sio.on("start_ECDH")
 def start_ECDH(data):
     print("\nReceived start_ECDH:")
-    global A_sig 
+    global A_sig
     A_sig = data["id_A"] + sio.get_sid() + data["pubKey_A"] + pubKey_c
-    global A_pub 
+    global A_pub
     A_pub = data["pubKey_A"]
     sio.emit(
         "responseB_ECDH",
         {
             "B_id": sio.get_sid(),
             "pubKey_B": pubKey_c,
-            "sig": str(ecc.sign(
-                privKey, data["id_A"] + sio.get_sid() + data["pubKey_A"] + pubKey_c
-            )),
+            "sig": str(
+                ecc.sign(
+                    privKey, data["id_A"] + sio.get_sid() + data["pubKey_A"] + pubKey_c
+                )
+            ),
         },
     )
+
 
 @sio.on("startA_ECDH")
 def startA_ECDH(data):
@@ -103,19 +108,24 @@ def startA_ECDH(data):
     if not ecc.verify(message, data["sig"], data["pubKey_B"]):
         print("\nECDH error!")
         sio.disconnect()
-    
+
     sio.emit(
         "responseA_ECDH",
         {
             "A_id": sio.get_sid(),
-            "sig": str(ecc.sign(
-                privKey,  sio.get_sid() + data["id_B"] + pubKey_c + data["pubKey_B"]
-            )),
+            "sig": str(
+                ecc.sign(
+                    privKey, sio.get_sid() + data["id_B"] + pubKey_c + data["pubKey_B"]
+                )
+            ),
         },
     )
-
+    global shared_key
     shared_key = ecc.reconstruct_pubkey(data["pubKey_B"]) * privKey
-    print("\nShared key:", shared_key)
+    # print("\nShared key:", shared_key)
+    print("Shared key established.")
+    global flag
+    flag = True
 
 
 @sio.on("finalB_ECDH")
@@ -124,8 +134,26 @@ def finalB_ECDH(data):
     if not ecc.verify(A_sig, data["sig"], A_pub):
         print("\nECDH error!")
         sio.disconnect()
+    global shared_key
     shared_key = ecc.reconstruct_pubkey(A_pub) * privKey
-    print("\nShared key:", shared_key)
+    # print("\nShared key:", shared_key)
+    print("Shared key established.")
+    global flag
+    flag = True
+
+
+@sio.on("recv_message")
+def recv_message(data):
+    cipher = AES.new(key, AES.MODE_EAX, nonce=data["nonce"])
+    plaintext = cipher.decrypt(data["ciphertext"])
+    try:
+        cipher.verify(data["tag"])
+        print(f"""{data["username"]}: {plaintext.decode("UTF-8")}""")
+    except ValueError:
+        print("Key incorrect or message corrupted")
+        sio.disconnect()
+        sys.exit(1)
+
 
 @sio.event
 def message(msg_txt):
@@ -138,7 +166,7 @@ def disconnect():
     print("Disconnected from server")
 
 
-if __name__ == "__main__":
+def main():
     print(
         """  _____ ____  _____ _____     ___ __  __ 
  | ____|___ \| ____| ____|   |_ _|  \/  |
@@ -170,12 +198,37 @@ if __name__ == "__main__":
     except socketio.exceptions.ConnectionError as e:
         sys.exit(1)
 
+    print("\nClient authentication successful!")
+
     # Wait for other client to connect
-    sio.wait()
     print("Waiting for other client to connect...")
 
-    # Send username and keypair to server
-    # sio.emit("login", {"username": username, "pubKey_c": pubKey_c})
+    while flag == False:
+        time.sleep(2)
 
-    sio.send("Hello World")
-    sio.wait()
+    # shared_key = None
+    global key
+    key = hashlib.sha3_256(str(shared_key.x).encode("UTF-8")).digest()
+
+    # Generate AES key
+    cipher = AES.new(key, AES.MODE_EAX)
+
+    # Prompt user for message
+    print("\nType your message and press enter to send it.")
+
+    while True:
+        msg = input()
+        nonce = cipher.nonce
+        ciphertext, tag = cipher.encrypt_and_digest(msg.encode("UTF-8"))
+        sio.emit(
+            "send_message",
+            {
+                "username": username,
+                "ciphertext": ciphertext,
+                "nonce": nonce,
+                "tag": tag,
+            },
+        )
+
+
+main()

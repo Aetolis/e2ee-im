@@ -126,7 +126,6 @@ io.on("connection", (socket) => {
   if (socket.id == A_id) {
     console.log("starting A", B_id);
     socket.to(B_id).emit("start_ECDH", {id_A: socket.id, pubKey_A: socket.handshake.auth.pubKey_c});
-
   }
 
   socket.on("responseB_ECDH", (data) => {
@@ -141,21 +140,14 @@ io.on("connection", (socket) => {
     socket.to(B_id).emit("finalB_ECDH", {id_A: data["A_id"], "sig": data["sig"]});
   });
 
-  if (socket.id == B_id) {
-
-  }
-
-
-
-  // socket.on("login", (data) => {
-  //   console.log("login: ", data);
-  // });
-
-  // socket.emit("message", "Hello from server");
-
-  // socket.on("message", (data) => {
-  //   console.log('received: %b', data);
-  // });
+  socket.on("send_message", (data) => {
+    if (socket.id == A_id) {
+      socket.to(B_id).emit("recv_message", data);
+    }
+    if (socket.id == B_id) {
+      socket.to(A_id).emit("recv_message", data);
+    }
+  });
 
   socket.on("disconnect", () => {
     console.log("Client disconnected");
