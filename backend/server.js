@@ -20,8 +20,14 @@ io.use(async (socket, next) => {
   const username = socket.handshake.auth.username;
   const pubKey_pem = socket.handshake.auth.pubKey_pem;
 
+  console.log(
+    `\n[${socket.id} ${username}] Starting client-server authentication...`
+  );
+
   // Get user from database
-  console.log("Get username and pubKey_pem", username, pubKey_pem);
+  console.log(
+    `[${socket.id} ${username}] Getting user ${username} from database...`
+  );
 
   const user = await prisma.user.findUnique({
     where: {
@@ -29,115 +35,145 @@ io.use(async (socket, next) => {
     },
   });
 
-  // Check if user exists
+  // If user does not exist
   if (user == null) {
     // Create new user
-    console.log("Adding new user:", username);
+    console.log(`[${socket.id} ${username}] Creating new user ${username}...`);
     await prisma.user.create({
       data: {
         username: username,
-        pubKey_c: pubKey_pem,
+        pubKey_pem: pubKey_pem,
       },
     });
-    socket.send("New user:" + username);
+    console.log(`[${socket.id} ${username}] Successfully created new user!`);
+    socket.send("New user created!");
     next();
+  // User exists in database
   } else {
-    console.log("User already exists:", user.username);
+    console.log(
+      `[${socket.id} ${username}] Successfully retrieved user ${username}:`
+    );
+    console.log(`[${socket.id} ${username}] createdAt: ${user.createdAt}`);
+    console.log(`[${socket.id} ${username}] pubKey_pem:\n ${pubKey_pem}`);
+    
     // Verify user provided pubKey_c matches database
-    if (user.pubKey_c != pubKey_pem) {
-      // console.log("User pubKey_c does not match:", username, pubKey_c);
-      console.log("Authentication error: public key does not match user!");
+    if (user.pubKey_pem != pubKey_pem) {
+      console.log(
+        `[${socket.id} ${username}] Authentication error: user pubKey does not match db!`
+      );
+      console.log(`[${socket.id} ${username}] pubKey_pem:\n ${user.pubKey_pem}`);
       const err = new Error(
         "Authentication error: public key does not match user!"
       );
       err.data = { content: "Please try another username." };
-      socket.disconnect(true);
+      socket.disconnect();
       next(err);
     } else {
+      console.log(`[${socket.id} ${username}] User pubKey matches db!`);
+      console.log(`[${socket.id} ${username}] pubKey_pem:\n ${user.pubKey_pem}`);
       next();
     }
   }
 });
 
 io.on("connection", (socket) => {
-  console.log("New client connected: ", socket.id);
-  console.log("Clients connected: ", io.of("/").sockets.keys());
+  const username = socket.handshake.auth.username;
+  // console.log(`[${socket.id} ${username}]`);
+
+  console.log(`[${socket.id} ${username}] Websocket connection established!`);
+  console.log(`[${socket.id} ${username}] Continuing client-server authentication...`);
 
   // Generate random token for client authentication with server
-  console.log("Generate random token...");
+  console.log(`[${socket.id} ${username}] Generating random token...`);
   const rand_token = crypto.randomBytes(32).toString("hex");
-  // console.log("rand_token:", rand_token);
+  console.log(`[${socket.id} ${username}] ${rand_token}`);
 
   // Send random token to client and request signature
+  console.log(`[${socket.id} ${username}] Requesting signature from client...`);
   socket.emit("request_sig", rand_token);
 
   // Receive signature from client
   socket.on("response_sig", async (data) => {
-    console.log("Received signature from client...");
-    // console.log("data:", data);
+    console.log(`[${socket.id} ${username}] Received signature from client:`);
+    console.log(`[${socket.id} ${username}] auth_sig: ${data["auth_sig"].toString("hex")}`);
+
+    console.log(`[${socket.id} ${username}] Verifying signature...`);
 
     // Get user from database
     const user = await prisma.user.findUnique({
       where: {
-        username: socket.handshake.auth.username,
+        username: username,
       },
     });
-
-    // Verify user provided pubKey_c matches database
-    if (user.pubKey_c != data["pubKey_pem"]) {
-      console.log(
-        "User pubKey_c does not match:",
-        socket.handshake.auth.username,
-        data["pubKey_pem"]
-      );
-      console.log("Signature verification failed!");
-      socket.emit("authentication_error");
-      socket.disconnect();
-    }
 
     // Verify signature is valid
     if (
       crypto.verify(
         "SHA256",
         Buffer.from(socket.id + rand_token),
-        data["pubKey_pem"],
-        data["sig"]
+        user.pubKey_pem,
+        data["auth_sig"]
       )
     ) {
-      console.log("Signature verification successful!");
+      console.log(`[${socket.id} ${username}] Signature verification successful!`);
       socket.emit("authentication_success");
     } else {
-      console.log("Signature verification failed!");
+      console.log(`[${socket.id} ${username}] Signature verification failed!`);
       socket.emit("authentication_error");
       socket.disconnect();
     }
   });
 
-
+  console.log(
+    `[${socket.id} ${username}] Client-server authentication successful!`
+  );
+  console.log(
+    `[${socket.id} ${username}] Clients connected: ${io.engine.clientsCount}`
+  );
+  // console.log("Clients connected: ", io.of("/").sockets.keys());
 
   if (io.engine.clientsCount == 2) {
-    console.log("Two clients connected!", socket.handshake.auth.username);
+    console.log(`[${socket.id} ${username}] Second client connected!`);
     A_id = socket.id;
   } else {
-    console.log("Waiting for other client...");
+    console.log(`[${socket.id} ${username}] Waiting for second client...`);
     B_id = socket.id;
   }
 
+  // Begin ECDH key exchange
   if (socket.id == A_id) {
-    console.log("starting A", B_id);
-    socket.to(B_id).emit("start_ECDH", {id_A: socket.id, pubKey_A: socket.handshake.auth.pubKey_c});
+    console.log(`[${socket.id} ${username}] Start A-B ECDH handshake...`);
+    console.log(`[${socket.id} ${username}] Sending A_handshake to B...`);
+    console.log(`[${socket.id} ${username}] id_A: ${socket.id}`);
+    console.log(`[${socket.id} ${username}] pubKey_A: ${socket.handshake.auth.pubKey_c}`);
+    socket
+      .to(B_id)
+      .emit("A_handshake", {
+        id_A: socket.id,
+        pubKey_A: socket.handshake.auth.pubKey_c,
+      });
   }
 
-  socket.on("responseB_ECDH", (data) => {
-    console.log("Received ECDH from B...");
-    console.log("data:", data);
-    socket.to(A_id).emit("startA_ECDH", {id_B: data["B_id"], pubKey_B: data["pubKey_B"], "sig": data["sig"]});
+  socket.on("B_handshake", (data) => {
+    console.log(`[${socket.id} ${username}] Received B_handshake!`);
+    console.log(`[${socket.id} ${username}] B_id: ${data.id_B}`);
+    console.log(`[${socket.id} ${username}] pubKey_B: ${data["pubKey_B"]}`);
+    console.log(`[${socket.id} ${username}] sig: ${data["sig"]}`);
+    socket
+      .to(A_id)
+      .emit("B_handshake", {
+        id_B: data["B_id"],
+        pubKey_B: data["pubKey_B"],
+        sig: data["sig"],
+      });
   });
 
   socket.on("responseA_ECDH", (data) => {
     console.log("Received ECDH from A...");
     console.log("data:", data);
-    socket.to(B_id).emit("finalB_ECDH", {id_A: data["A_id"], "sig": data["sig"]});
+    socket
+      .to(B_id)
+      .emit("finalA_handshake", { id_A: data["A_id"], sig: data["sig"] });
   });
 
   socket.on("send_message", (data) => {
